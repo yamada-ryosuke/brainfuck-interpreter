@@ -1,3 +1,7 @@
+/// brainfuckの構文木
+mod syntax_tree;
+use syntax_tree::SyntaxTree;
+
 use std::{
     collections::VecDeque,
     io::{Read, Write, stdin, stdout},
@@ -9,18 +13,8 @@ fn main() {
     if let Err(msg) = program.run() {
         print!("{}", msg);
     }
+    println!("{:?}", SyntaxTree::new(code));
 }
-
-// enum Command {
-//     PI,     // ポインタのインクリメント'>'
-//     PD,     // ポインタのデクリメント'<'
-//     VI,     // ポインタの指す値のインクリメント'+'
-//     VD,     // ポインタの指す値のデクリメント'-'
-//     OUT,    // ポインタの指す値を出力'.'
-//     IN,     // ポインタの指す先に入力','
-//     LB,     // ループの初期位置'['
-//     LE,     // ループの終端位置']'
-// }
 
 struct Program {
     code: Vec<u8>,
