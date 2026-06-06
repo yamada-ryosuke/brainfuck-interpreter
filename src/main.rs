@@ -1,100 +1,68 @@
 /// brainfuckの構文木
 mod syntax_tree;
-use syntax_tree::SyntaxTree;
+use syntax_tree::{Command, SyntaxTree};
 
-use std::{
-    collections::VecDeque,
-    io::{Read, Write, stdin, stdout},
-};
+use std::io::{Read, Write, stdin, stdout};
 
 fn main() {
     let code = ">++++[<++++++++>-]>++++++++[<++++++>-]<++.<.>+.<.>++.<.>++.<.>------..<.>.++.<.>--.++++++.<.>------.>+++[<+++>-]<-.<.>-------.+.<.> -.+++++++.<.>------.--.<.>++.++++.<.>---.---.<.> +++.-.<.>+.+++.<.>--.--.<.> ++.++++.<.>---.-----.<.>+++++.+.<.>.------.<.> ++++++.----.<.> ++++.++.<.> -.-----.<.>+++++.+.<.>.--.";
-    let program = Program::new(code);
-    if let Err(msg) = program.run() {
-        print!("{}", msg);
-    }
-    println!("{:?}", SyntaxTree::new(code));
+    let program = Program::new(code).unwrap();
+    program.run().unwrap();
 }
 
 struct Program {
-    code: Vec<u8>,
+    syntax_tree: SyntaxTree,
+    memory: Vec<u8>,
+    memory_ptr: usize,
 }
 
 impl Program {
     /// プログラムを作成する。
-    fn new(code: &str) -> Self {
-        Self {
-            code: code.as_bytes().to_vec(),
-        }
+    fn new(code: &str) -> Result<Self, String> {
+        Ok(Self {
+            syntax_tree: SyntaxTree::new(code)?,
+            memory: vec![0u8; 30000],
+            memory_ptr: 0usize,
+        })
     }
 
-    fn run(self) -> Result<(), String> {
-        let mut code_ptr = 0usize;
-        let mut memory = vec![0u8; 30000];
-        let mut memory_ptr = 0usize;
+    fn run(mut self) -> Result<(), String> {
+        let commands = std::mem::take(&mut self.syntax_tree.commands);
+        self.run_commands(&commands)
+    }
 
-        let mut brackets = VecDeque::new();
-        while code_ptr < self.code.len() {
-            // println!("{}文字目: {}, メモリ: {:?}", code_ptr, self.code[code_ptr] as char, &memory[0..30]);
-            // println!("\tメモリポインタ: {}, メモリポインタの値: {}, スタック: {:?}", memory_ptr, &memory[memory_ptr], &brackets);
-            match self.code[code_ptr] as char {
-                '>' => {
-                    memory_ptr += 1;
+    fn run_commands(&mut self, commands: &Vec<Command>) -> Result<(), String> {
+        for command in commands {
+            match command {
+                Command::PtrIncr => {
+                    self.memory_ptr += 1;
                 }
-                '<' => {
-                    memory_ptr -= 1;
+                Command::PtrDecr => {
+                    self.memory_ptr -= 1;
                 }
-                '+' => {
-                    memory[memory_ptr] += 1;
+                Command::ValIncr => {
+                    self.memory[self.memory_ptr] += 1;
                 }
-                '-' => {
-                    memory[memory_ptr] -= 1;
+                Command::ValDecr => {
+                    self.memory[self.memory_ptr] -= 1;
                 }
-                '.' => {
-                    let buf = [memory[memory_ptr]];
+                Command::Output => {
+                    let buf = [self.memory[self.memory_ptr]];
                     stdout().write_all(&buf).unwrap();
                 }
-                ',' => {
+                Command::Input => {
                     let mut buf = [0u8];
                     if stdin().read_exact(&mut buf).is_err() {
-                        return Err(format!("入力を読み込めませんでした({}文字目)\n", code_ptr));
+                        return Err("入力を読み込めませんでした\n".into());
                     }
-                    memory[memory_ptr] = buf[0];
+                    self.memory[self.memory_ptr] = buf[0];
                 }
-                '[' => {
-                    if memory[memory_ptr] == 0 {
-                        let depth = brackets.len();
-                        brackets.push_back(code_ptr);
-                        code_ptr += 1;
-                        while brackets.len() != depth {
-                            if self.code[code_ptr] as char == '[' {
-                                brackets.push_back(code_ptr);
-                            } else if self.code[code_ptr] as char == ']' {
-                                brackets.pop_back();
-                            }
-                            code_ptr += 1;
-                        }
-                        code_ptr -= 1;
-                    } else {
-                        brackets.push_back(code_ptr);
+                Command::Loop { inner_commands } => {
+                    while self.memory[self.memory_ptr] != 0 {
+                        self.run_commands(&inner_commands)?;
                     }
                 }
-                ']' => match brackets.pop_back() {
-                    Some(bracket_ptr) => {
-                        if memory[memory_ptr] != 0 {
-                            code_ptr = bracket_ptr;
-                            brackets.push_back(code_ptr);
-                        }
-                    }
-                    None => {
-                        return Err(
-                            format!("対応するかっこがありません。({}文字目)\n", code_ptr).into(),
-                        );
-                    }
-                },
-                _ => {} // brainfuckでは関係ない文字は無視され読み飛ばされるらしい
             }
-            code_ptr += 1;
         }
         Ok(())
     }
@@ -107,9 +75,14 @@ mod test {
     #[test]
     fn hello_world() {
         let code = "+++++++++[>++++++++>+++++++++++>+++>+<<<<-]>.>++.+++++++..+++.>+++++.<<+++++++++++++++.>.+++.------.--------.>+.>+.";
-        let program = Program::new(code);
-        if let Err(msg) = program.run() {
-            print!("{}", msg);
-        }
+        let program = Program::new(code).unwrap();
+        program.run().unwrap();
+    }
+
+    #[test]
+    fn prime_number() {
+        let code = ">++++[<++++++++>-]>++++++++[<++++++>-]<++.<.>+.<.>++.<.>++.<.>------..<.>.++.<.>--.++++++.<.>------.>+++[<+++>-]<-.<.>-------.+.<.> -.+++++++.<.>------.--.<.>++.++++.<.>---.---.<.> +++.-.<.>+.+++.<.>--.--.<.> ++.++++.<.>---.-----.<.>+++++.+.<.>.------.<.> ++++++.----.<.> ++++.++.<.> -.-----.<.>+++++.+.<.>.--.";
+        let program = Program::new(code).unwrap();
+        program.run().unwrap();
     }
 }

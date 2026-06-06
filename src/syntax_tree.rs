@@ -6,7 +6,7 @@ use std::{
 /// brainfuckの構文木
 #[derive(Debug)]
 pub struct SyntaxTree {
-    commands: Vec<Command>,
+    pub commands: Vec<Command>,
 }
 
 impl SyntaxTree {
@@ -26,7 +26,6 @@ impl SyntaxTree {
     fn parse_code(iter: &mut Peekable<Enumerate<Chars<'_>>>) -> Result<Vec<Command>, String> {
         let mut commands = Vec::new();
         while let Some((index, c)) = iter.peek().copied() {
-            println!("{}文字目", index);
             match c {
                 '>' => {
                     commands.push(Command::PtrIncr);
@@ -51,13 +50,15 @@ impl SyntaxTree {
                     let inner_commands = Self::parse_code(iter)?;
                     match iter.peek() {
                         Some(_) => {
-                            commands.push(Command::Loop(inner_commands));
-                        },
+                            commands.push(Command::Loop {
+                                inner_commands: inner_commands,
+                            });
+                        }
                         None => {
                             return Err(format!("{}文字目の'['に対応する']'がありません", &index));
                         }
                     }
-                },
+                }
                 ']' => {
                     return Ok(commands);
                 }
@@ -86,5 +87,5 @@ pub enum Command {
     Input,
     /// ループの初期位置'\['から終了位置'\]'まで
     /// 引数はLoopの中身
-    Loop(Vec<Command>),
+    Loop { inner_commands: Vec<Command> },
 }
