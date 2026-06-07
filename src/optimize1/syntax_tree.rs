@@ -10,10 +10,17 @@ pub struct SyntaxTree {
 
 impl SyntaxTree {
     pub fn new(code: &str) -> Result<Self, String> {
+        // まずシンプル構文木を構築する
         let simple_syntree = simple::SyntaxTree::new(code)?;
+        // シンプル構文木をAdd命令とMove命令による命令列に変換する
+        let base_commands = Self::conversion(&simple_syntree.commands);
+        // 命令列を並べ替えたりといった最適化をかける
         Ok(Self {
-            commands: Self::conversion(&simple_syntree.commands),
+            commands: Self::optimize(base_commands).0,
         })
+        // Ok(Self {
+        //     commands: Self::conversion(&simple_syntree.commands),
+        // })
     }
 
     /// シンプル構文木をAdd命令とMove命令を持つ構文木に変換する。
@@ -24,6 +31,7 @@ impl SyntaxTree {
         let mut ptr = 0;
         let mut add_map = BTreeMap::new();
 
+        // ここではPtrIncrをMove { ptr: 1 }に置き換えるだけとかでよくて、optimizeのところでひとまとめにしたい
         for command in simple_commands {
             match command {
                 simple::Command::PtrIncr => {
@@ -67,12 +75,13 @@ impl SyntaxTree {
                     add_map.clear();
                     // それまで貯めてた分のポインタの移動をする
                     if ptr != 0 {
-                        commands.push(Command::Move { ptr });
+                        commands.push(Command::Move { diff: ptr });
                         ptr = 0;
                     }
                     // ループの中に入る
                     commands.push(Command::Loop {
                         inner_commands: Self::conversion(inner_commands),
+                        ptr: ptr,
                     });
                 }
             }
@@ -88,10 +97,62 @@ impl SyntaxTree {
         }
         // それまで貯めてた分のポインタの移動をする
         if ptr != 0 {
-            commands.push(Command::Move { ptr });
+            commands.push(Command::Move { diff: ptr });
         }
 
         commands
+    }
+
+    /// 最適化をかける
+    fn optimize(commands: Vec<Command>) -> (Vec<Command>, Option<Vec<i32>>) {
+        // 内側のループが最適化済みのコマンド列を作成する
+        let mut inner_optimized_commands = Vec::new();
+        for command in commands {
+            inner_optimized_commands.push(match command {
+                Command::Add { ptr, op: _ } => (command, Some(vec![ptr])),
+                Command::Move { diff: _ } => (command, Some(vec![])),
+                Command::Output { ptr } => (command, Some(vec![ptr])),
+                Command::Input { ptr } => (command, Some(vec![ptr])),
+                Command::Loop {
+                    inner_commands,
+                    ptr,
+                } => {
+                    let (inner, ptr_list) = Self::optimize(inner_commands);
+                    (
+                        Command::Loop {
+                            inner_commands: inner,
+                            ptr: ptr,
+                        },
+                        ptr_list,
+                    )
+                }
+            });
+        }
+
+        // 命令列の並べ替え
+        // Command::Moveを後ろに集める
+        for move_i in (0..inner_optimized_commands.len()).rev() {
+            // Moveじゃなければ次に行く
+            let diff = match inner_optimized_commands[move_i].0 {
+                Command::Move { diff: ptr } => ptr,
+                _ => {
+                    continue;
+                }
+            };
+            // バブルソートの要領でMoveを後ろに持ってくる
+            for to_i in (move_i + 1)..inner_optimized_commands.len() {
+                let from_i = to_i - 1;
+                inner_optimized_commands[to_i].0 = inner_optimized_commands[to_i].0.shift(diff);
+                inner_optimized_commands.swap(from_i, to_i);
+            }
+        }
+        let (commands, options): (Vec<Command>, Vec<Option<Vec<i32>>>) =
+            inner_optimized_commands.into_iter().unzip();
+        let ptrlist = options
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .map(|vv| vv.concat());
+        (commands, ptrlist)
     }
 }
 
@@ -100,13 +161,43 @@ impl SyntaxTree {
 pub enum Command {
     /// 相対位置ptrのメモリにopを足す
     Add { ptr: i32, op: i32 },
-    /// ポインタを相対位置ptrだけ移動する
-    Move { ptr: i32 },
+    /// ポインタを相対位置diffだけ移動する
+    Move { diff: i32 },
     /// 相対位置ptrのメモリの値を出力'.'
     Output { ptr: i32 },
     /// 相対位置ptrのメモリに入力','
     Input { ptr: i32 },
     /// ループの初期位置'\['から終了位置'\]'まで
-    /// 引数はLoopの中身
-    Loop { inner_commands: Vec<Command> },
+    /// inner_commandsはLoopの中身。ptrは条件分岐のときに参照するメモリの相対位置
+    Loop {
+        inner_commands: Vec<Command>,
+        ptr: i32,
+    },
+}
+
+impl Command {
+    /// 命令を実行する位置のポインタをdiffだけ右にずらす
+    fn shift(&self, diff: i32) -> Self {
+        match self {
+            Self::Add { ptr, op } => Self::Add {
+                ptr: ptr + diff,
+                op: *op,
+            },
+            Self::Move { diff: diff_shifted } => Self::Move {
+                diff: *diff_shifted,
+            },
+            Self::Output { ptr } => Self::Output { ptr: ptr + diff },
+            Self::Input { ptr } => Self::Input { ptr: ptr + diff },
+            Self::Loop {
+                inner_commands,
+                ptr,
+            } => Self::Loop {
+                inner_commands: inner_commands
+                    .iter()
+                    .map(|command| command.shift(diff))
+                    .collect(),
+                ptr: ptr + diff,
+            },
+        }
+    }
 }

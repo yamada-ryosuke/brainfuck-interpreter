@@ -22,6 +22,7 @@ impl Program {
     }
 
     pub fn run(mut self) -> Result<(), String> {
+        // println!("{:?}", self.syntax_tree);
         let commands = std::mem::take(&mut self.syntax_tree.commands);
         self.run_commands(&commands)
     }
@@ -33,7 +34,7 @@ impl Program {
                     let ptr = (self.memory_ptr as i32 + ptr) as usize;
                     self.memory[ptr] = (self.memory[ptr] as i32 + op) as u8;
                 }
-                Command::Move { ptr } => {
+                Command::Move { diff: ptr } => {
                     self.memory_ptr = (self.memory_ptr as i32 + ptr) as usize;
                 }
                 Command::Output { ptr } => {
@@ -47,12 +48,13 @@ impl Program {
                     }
                     self.memory[(self.memory_ptr as i32 + ptr) as usize] = buf[0];
                 }
-                Command::Loop { inner_commands } => {
-                    while self.memory[self.memory_ptr] != 0 {
+                Command::Loop { inner_commands, ptr } => {
+                    while self.memory[(self.memory_ptr as i32 + ptr) as usize] != 0 {
                         self.run_commands(&inner_commands)?;
                     }
                 }
             }
+            // println!("コマンド: {:?}\t, メモリ: {:?}", command, self.memory[0..10].to_vec());
         }
         Ok(())
     }
