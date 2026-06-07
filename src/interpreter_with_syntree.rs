@@ -24,6 +24,7 @@ impl Program {
 
     fn run_commands(&mut self, commands: &Vec<Command>) -> Result<(), String> {
         for command in commands {
+            // println!("ポインタ: {}, コマンド: {:?}, メモリ: {:?}", self.memory_ptr, command, self.memory[0..10].as_array::<10>());
             match command {
                 Command::PtrIncr => {
                     self.memory_ptr += 1;
@@ -32,10 +33,10 @@ impl Program {
                     self.memory_ptr -= 1;
                 }
                 Command::ValIncr => {
-                    self.memory[self.memory_ptr] += 1;
+                    self.memory[self.memory_ptr] = self.memory[self.memory_ptr].wrapping_add(1);
                 }
                 Command::ValDecr => {
-                    self.memory[self.memory_ptr] -= 1;
+                    self.memory[self.memory_ptr] = self.memory[self.memory_ptr].wrapping_sub(1);
                 }
                 Command::Output => {
                     let buf = [self.memory[self.memory_ptr]];
@@ -61,7 +62,7 @@ impl Program {
 
 #[cfg(test)]
 mod test {
-    use crate::simple_interpreter::Program;
+    use crate::interpreter_with_syntree::Program;
 
 
     #[test]
