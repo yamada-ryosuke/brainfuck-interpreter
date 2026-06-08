@@ -104,6 +104,8 @@ impl SyntaxTree {
     }
 
     /// 最適化をかける
+    /// 戻り値のVec<Command>は最適化されたコマンド列
+    /// 戻り値のOption<Vec<i32>>は、コマンド列の結果ポインタが初期位置から変わる(または変わるか特定不可能)ならNone。変わらないなら使われたメモリ位置のポインタを返す。
     fn optimize(commands: Vec<Command>) -> (Vec<Command>, Option<Vec<i32>>) {
         // 内側のループが最適化済みのコマンド列を作成する
         let mut inner_optimized_commands = Vec::new();
