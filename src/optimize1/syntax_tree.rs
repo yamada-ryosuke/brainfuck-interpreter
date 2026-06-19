@@ -107,7 +107,7 @@ impl SyntaxTree {
     /// 戻り値のVec<Command>は最適化されたコマンド列
     /// 戻り値のOption<Vec<i32>>は、コマンド列の結果ポインタが初期位置から変わる(または変わるか特定不可能)ならNone。変わらないなら使われたメモリ位置のポインタを返す。
     fn optimize(commands: Vec<Command>) -> (Vec<Command>, Option<Vec<i32>>) {
-        // 内側のループが最適化済みのコマンド列を作成する
+        // 内側のループが既に最適化済みであるコマンド列を作成する
         let mut inner_optimized_commands = Vec::new();
         for command in commands {
             inner_optimized_commands.push(match command {
@@ -201,5 +201,51 @@ impl Command {
                 ptr: ptr + diff,
             },
         }
+    }
+}
+
+/// コマンド列
+struct CommandSequence {
+    /// コマンド列の本体
+    commands: Vec<Command>
+}
+
+impl CommandSequence {
+
+}
+
+/// 解析情報付きコマンド
+struct AnalysedCommand {
+    /// コマンドの本体
+    command: Command,
+    /// コマンド内で使われるメモリ位置のリスト
+    /// ただし、Loop命令のポインタの初期位置と最終位置がずれてる場合は、
+    /// 使われるメモリ位置が特定できないのでNone
+    ptr_list: Option<Vec<i32>>,
+}
+
+impl AnalysedCommand {
+    fn new(command: Command, ptr_list: Option<Vec<i32>>) -> Self {
+        AnalysedCommand { command: command, ptr_list: ptr_list }
+    }
+    /// コマンドの参照を取得する。
+    fn command_ref(&self) -> &Command {
+        &self.command
+    }
+    /// コマンド内で使われるメモリ位置のリストの参照を取得する
+    fn ptr_list_ref(&self) -> &Option<Vec<i32>> {
+        &self.ptr_list
+    }
+}
+
+/// 解析情報付きのコマンド列
+struct AnalysedCommandSequence {
+    /// 解析情報付きコマンドの本体
+    analysed_commands: Vec<AnalysedCommand>
+}
+
+impl AnalysedCommandSequence {
+    fn new(analysed_commands: Vec<AnalysedCommand>) -> Self {
+        Self { analysed_commands: analysed_commands }
     }
 }
