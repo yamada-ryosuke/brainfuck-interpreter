@@ -1,3 +1,4 @@
+mod optimize;
 /// Add命令とMove命令を持つ構文木モジュール
 mod syntax_tree;
 
@@ -5,10 +6,11 @@ use std::io::{Read, Write, stdin, stdout};
 
 use syntax_tree::{Command, SyntaxTree};
 
+use crate::optimize1::syntax_tree::CommandSequence;
+
+/// Optimize1のプログラム
 pub struct Program {
     syntax_tree: SyntaxTree,
-    memory: Vec<u8>,
-    memory_ptr: usize,
 }
 
 impl Program {
@@ -16,25 +18,34 @@ impl Program {
     pub fn new(code: &str) -> Result<Self, String> {
         Ok(Self {
             syntax_tree: SyntaxTree::new(code)?,
-            memory: vec![0u8; 30000],
-            memory_ptr: 0usize,
         })
     }
 
-    pub fn run(mut self) -> Result<(), String> {
-        // println!("{:?}", self.syntax_tree);
-        let commands = std::mem::take(&mut self.syntax_tree.commands);
-        self.run_commands(&commands)
+    pub fn run(&self) -> Result<(), String> {
+        println!("{:?}", self.syntax_tree);
+        let mut runtime = RunTime {
+            memory: vec![0u8; 30000],
+            memory_ptr: 0usize,
+        };
+        runtime.run_command_sequence(&self.syntax_tree.commands)
     }
+}
 
-    fn run_commands(&mut self, commands: &Vec<Command>) -> Result<(), String> {
-        for command in commands {
+/// Optimize1のプログラムのランタイム
+struct RunTime {
+    memory: Vec<u8>,
+    memory_ptr: usize,
+}
+
+impl RunTime {
+    fn run_command_sequence(&mut self, command_sequence: &CommandSequence) -> Result<(), String> {
+        for command in command_sequence {
             match command {
                 Command::Add { ptr, op } => {
                     let ptr = (self.memory_ptr as i32 + ptr) as usize;
                     self.memory[ptr] = (self.memory[ptr] as i32 + op) as u8;
                 }
-                Command::Move { diff: ptr } => {
+                Command::Move { ptr_diff: ptr } => {
                     self.memory_ptr = (self.memory_ptr as i32 + ptr) as usize;
                 }
                 Command::Output { ptr } => {
@@ -48,9 +59,12 @@ impl Program {
                     }
                     self.memory[(self.memory_ptr as i32 + ptr) as usize] = buf[0];
                 }
-                Command::Loop { inner_commands, ptr } => {
+                Command::Loop {
+                    inner_commands,
+                    ptr,
+                } => {
                     while self.memory[(self.memory_ptr as i32 + ptr) as usize] != 0 {
-                        self.run_commands(&inner_commands)?;
+                        self.run_command_sequence(inner_commands)?;
                     }
                 }
             }

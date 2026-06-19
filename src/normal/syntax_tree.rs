@@ -15,10 +15,11 @@ impl SyntaxTree {
         let mut iter = code.chars().enumerate().peekable();
         let commands = Self::parse_code(&mut iter)?;
         match iter.peek() {
-            None => Ok(Self { commands: commands }),
-            Some((end_index, _)) => {
-                Err(format!("{}文字目の']'に対応する'['がありません。", end_index).into())
-            }
+            None => Ok(Self { commands }),
+            Some((end_index, _)) => Err(format!(
+                "{}文字目の']'に対応する'['がありません。",
+                end_index
+            )),
         }
     }
 
@@ -50,9 +51,7 @@ impl SyntaxTree {
                     let inner_commands = Self::parse_code(iter)?;
                     match iter.peek() {
                         Some(_) => {
-                            commands.push(Command::Loop {
-                                inner_commands: inner_commands,
-                            });
+                            commands.push(Command::Loop { inner_commands });
                         }
                         None => {
                             return Err(format!("{}文字目の'['に対応する']'がありません", &index));

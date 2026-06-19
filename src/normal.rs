@@ -1,4 +1,6 @@
-use crate::syntax_tree::{Command, SyntaxTree};
+pub mod syntax_tree;
+
+use crate::normal::syntax_tree::{Command, SyntaxTree};
 use std::io::{Read, Write, stdin, stdout};
 
 pub struct Program {
@@ -51,7 +53,7 @@ impl Program {
                 }
                 Command::Loop { inner_commands } => {
                     while self.memory[self.memory_ptr] != 0 {
-                        self.run_commands(&inner_commands)?;
+                        self.run_commands(inner_commands)?;
                     }
                 }
             }
@@ -62,8 +64,7 @@ impl Program {
 
 #[cfg(test)]
 mod test {
-    use crate::interpreter_with_syntree::Program;
-
+    use crate::normal::Program;
 
     #[test]
     fn hello_world() {
